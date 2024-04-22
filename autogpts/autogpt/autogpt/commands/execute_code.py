@@ -1,11 +1,12 @@
 """Commands to execute code"""
 
-import logging
 import os
+import queue
 import shlex
+import logging
+import traceback
 import subprocess
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import docker
 from docker.errors import DockerException, ImageNotFound, NotFound
@@ -88,18 +89,23 @@ def execute_python_code(code: str, agent: Agent) -> str:
         str: The STDOUT captured from the code when it ran.
     """
 
-    tmp_code_file = NamedTemporaryFile(
-        "w", dir=agent.workspace.root, suffix=".py", encoding="utf-8"
-    )
-    tmp_code_file.write(code)
-    tmp_code_file.flush()
-
     try:
-        return execute_python_file(tmp_code_file.name, agent)  # type: ignore
+        agent.python_kernel.execute(code)
+        output_texts = []
+        while True:
+            try:
+                io_msg = agent.python_kernel.get_iopub_msg(timeout=1)
+                if 'name' in io_msg['content'].keys() and io_msg['content']['name'] == 'stdout':
+                    output_texts.append(io_msg['content']['text'])
+                elif 'traceback' in io_msg['content'].keys():
+                    raise IOError(f"{io_msg['content']['evalue']}\n{io_msg['content']['traceback']}")
+            except queue.Empty:
+                break
+
+        output = ''.join(output_texts)
+        return output
     except Exception as e:
         raise CommandExecutionError(*e.args)
-    finally:
-        tmp_code_file.close()
 
 
 @command(

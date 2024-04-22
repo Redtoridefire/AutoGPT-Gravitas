@@ -8,6 +8,7 @@ import pytest
 import autogpt.commands.execute_code as sut  # system under testing
 from autogpt.agents.agent import Agent
 from autogpt.agents.utils.exceptions import (
+    CommandExecutionError,
     InvalidArgumentError,
     OperationNotAllowedError,
 )
@@ -72,6 +73,24 @@ def test_execute_python_code(random_code: str, random_string: str, agent: Agent)
     result: str = sut.execute_python_code(random_code, agent=agent)
     assert result.replace("\r", "") == f"Hello {random_string}!\n"
 
+def test_several_execute_python_code(agent: Agent):
+    if not (sut.is_docker_available() or sut.we_are_running_in_a_docker_container()):
+        pytest.skip("Docker is not available")
+
+    result: str = sut.execute_python_code("a=3\nprint(a)", agent=agent)
+    assert result.replace("\r", "") == f"3\n"
+    result: str = sut.execute_python_code("a+=1\nprint(a)", agent=agent)
+    assert result.replace("\r", "") == f"4\n"
+
+def test_execute_python_code_raise_exception_scenario(agent: Agent):
+    if not (sut.is_docker_available() or sut.we_are_running_in_a_docker_container()):
+        pytest.skip("Docker is not available")
+
+    with pytest.raises(
+        CommandExecutionError,
+        match=r"name 'a' is not defined",
+    ):
+        sut.execute_python_code("a+=1", agent=agent)
 
 def test_execute_python_file_invalid(agent: Agent):
     with pytest.raises(InvalidArgumentError):

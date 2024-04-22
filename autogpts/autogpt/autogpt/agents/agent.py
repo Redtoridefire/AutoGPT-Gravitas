@@ -6,6 +6,9 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from nbformat.v4 import new_notebook
+from jupyter_client.manager import start_new_kernel
+
 import sentry_sdk
 from pydantic import Field
 
@@ -111,6 +114,9 @@ class Agent(
         """Timestamp the agent was created; only used for structured debug logging."""
 
         self.log_cycle_handler = LogCycleHandler()
+        self.notebook = new_notebook()
+        kernel_name = self.notebook.metadata.get('kernelspec', {}).get('name', 'python')
+        _, self.python_kernel = start_new_kernel(kernel_name=kernel_name)
         """LogCycleHandler for structured debug logging."""
 
     def build_prompt(
