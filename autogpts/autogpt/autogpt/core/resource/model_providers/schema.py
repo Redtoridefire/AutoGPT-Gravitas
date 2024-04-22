@@ -1,5 +1,6 @@
 import abc
 import enum
+import logging
 import math
 from collections import defaultdict
 from typing import (
@@ -38,6 +39,7 @@ class ModelProviderService(str, enum.Enum):
 
 class ModelProviderName(str, enum.Enum):
     OPENAI = "openai"
+    ANTHROPIC = "anthropic"
 
 
 class ChatMessage(BaseModel):
@@ -94,6 +96,12 @@ class AssistantChatMessage(ChatMessage):
     role: Literal[ChatMessage.Role.ASSISTANT] = ChatMessage.Role.ASSISTANT
     content: Optional[str]
     tool_calls: Optional[list[AssistantToolCall]] = None
+
+
+class ToolResultMessage(ChatMessage):
+    role: Literal[ChatMessage.Role.TOOL] = ChatMessage.Role.TOOL
+    is_error: bool = False
+    tool_call_id: str
 
 
 class AssistantChatMessageDict(TypedDict, total=False):
@@ -225,7 +233,7 @@ class ModelProviderBudget(ProviderBudget):
 class ModelProviderSettings(ProviderSettings):
     resource_type: ResourceType = ResourceType.MODEL
     configuration: ModelProviderConfiguration
-    credentials: ModelProviderCredentials
+    credentials: Optional[ModelProviderCredentials] = None
     budget: Optional[ModelProviderBudget] = None
 
 
@@ -234,8 +242,27 @@ class ModelProvider(abc.ABC):
 
     default_settings: ClassVar[ModelProviderSettings]
 
+    _settings: ModelProviderSettings
     _configuration: ModelProviderConfiguration
+    _credentials: Optional[ModelProviderCredentials] = None
     _budget: Optional[ModelProviderBudget] = None
+
+    _logger: logging.Logger
+
+    def __init__(
+        self,
+        settings: Optional[ModelProviderSettings] = None,
+        logger: Optional[logging.Logger] = None,
+    ):
+        if not settings:
+            settings = self.default_settings.copy(deep=True)
+
+        self._settings = settings
+        self._configuration = settings.configuration
+        self._credentials = settings.credentials
+        self._budget = settings.budget
+
+        self._logger = logger or logging.getLogger(self.__module__)
 
     @abc.abstractmethod
     def count_tokens(self, text: str, model_name: str) -> int:

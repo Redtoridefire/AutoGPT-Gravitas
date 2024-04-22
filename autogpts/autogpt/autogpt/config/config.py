@@ -18,8 +18,8 @@ from autogpt.core.configuration.schema import (
     SystemSettings,
     UserConfigurable,
 )
+from autogpt.core.resource.model_providers import CHAT_MODELS, ModelName
 from autogpt.core.resource.model_providers.openai import (
-    OPEN_AI_CHAT_MODELS,
     OpenAICredentials,
     OpenAIModelName,
 )
@@ -78,17 +78,17 @@ class Config(SystemSettings, arbitrary_types_allowed=True):
     )
 
     # Model configuration
-    fast_llm: OpenAIModelName = UserConfigurable(
+    fast_llm: ModelName = UserConfigurable(
         default=OpenAIModelName.GPT3,
         from_env="FAST_LLM",
     )
-    smart_llm: OpenAIModelName = UserConfigurable(
+    smart_llm: ModelName = UserConfigurable(
         default=OpenAIModelName.GPT4_TURBO,
         from_env="SMART_LLM",
     )
     temperature: float = UserConfigurable(default=0, from_env="TEMPERATURE")
     openai_functions: bool = UserConfigurable(
-        default=False, from_env=lambda: os.getenv("OPENAI_FUNCTIONS", "False") == "True"
+        default=True, from_env=lambda: os.getenv("OPENAI_FUNCTIONS", "True") == "True"
     )
     embedding_model: str = UserConfigurable(
         default="text-embedding-3-small", from_env="EMBEDDING_MODEL"
@@ -243,8 +243,8 @@ class Config(SystemSettings, arbitrary_types_allowed=True):
     def validate_openai_functions(cls, v: bool, values: dict[str, Any]):
         if v:
             smart_llm = values["smart_llm"]
-            assert OPEN_AI_CHAT_MODELS[smart_llm].has_function_call_api, (
-                f"Model {smart_llm} does not support OpenAI Functions. "
+            assert CHAT_MODELS[smart_llm].has_function_call_api, (
+                f"Model {smart_llm} does not support tool calling. "
                 "Please disable OPENAI_FUNCTIONS or choose a suitable model."
             )
         return v
